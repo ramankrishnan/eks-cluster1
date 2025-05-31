@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-fetcher
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: data-fetcher
+            image: python:3.9
+            command: ["python", "-c"]
+            args:
+            - |
+              import os, requests, boto3, json
+              api_key = os.environ["API_KEY"]
+              bucket = os.environ["S3_BUCKET"]
+              response = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q=London&appid={api_key}")
+              data = response.json()
+              s3 = boto3.client("s3")
+              s3.put_object(Bucket=bucket, Key="weather.json", Body=json.dumps(data))
+            env:
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: api-key
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: s3_bucket
+            - name: AWS_REGION
+              value: "us-east-1"
